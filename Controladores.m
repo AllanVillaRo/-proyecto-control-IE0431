@@ -16,10 +16,18 @@
 %        C3: AMIGO de Astrom y Hagglund      -> literatura
 %        C4: PI discreto en sisotool con el modelo de minimos cuadrados
 %   5) Simula servocontrol y regulatorio y mide Mp, ta2%, ep, IAE, TVu, Ms
+%   6) Grafica y mide las pruebas en la planta real (C2 y C4, 27/10/2026)
+%   7) Exporta todas las figuras a la carpeta "figuras"
+%
+% Archivos que deben estar en la misma carpeta que este script:
+%   tclab_ident_data_Q1_v_79-27-60.txt  (identificacion)
+%   dataPrueba1.txt  (prueba real con C2)   dataprueba2.txt  (prueba real con C4)
 %
 % Se puede abrir como Live Script: en MATLAB, clic derecho sobre el archivo
 % -> "Open as Live Script". Cada seccion %% queda como una celda.
 clear; close all; clc;
+% Figuras con fondo blanco (para el informe), aunque MATLAB use el tema oscuro
+try, set(groot, 'DefaultFigureTheme', 'light'); catch, end
 
 %% 0. Configuracion (lo unico que hay que revisar)
 ARCHIVO_CSV = 'tclab_ident_data_Q1_v_79-27-60.txt';  % datos del equipo 2-10
@@ -142,6 +150,16 @@ s = tf('s');
 dat = iddata(dy, du, Ts);
 opt = procestOptions('InitialCondition','zero');   % SearchMethod 'auto' (interno)
 M1id = procest(dat, 'P1D', opt);
+% Metodo interno usado por el toolbox (se pide indicarlo en el informe)
+rep = M1id.Report;
+fprintf('procest P1D: SearchMethod = %s, ajuste a los datos = %.2f %%\n', ...
+        rep.OptionsUsed.SearchMethod, rep.Fit.FitPercent);
+if isfield(rep.Termination, 'Algorithm')
+    fprintf('Algoritmo de busqueda empleado: %s (%s)\n', ...
+            rep.Termination.Algorithm, rep.Termination.WhyStop);
+else
+    fprintf('Terminacion de la busqueda: %s\n', rep.Termination.WhyStop);
+end
 P1 = tf(M1id);
 P1 = tf(P1.Numerator, P1.Denominator, 'InputDelay', M1id.Td);
 
@@ -373,7 +391,152 @@ fprintf('(C4 es discreto: periodo de muestreo Ts = %.0f s, integral por Euler ha
 fprintf('Punto de operacion: u0 = %.2f %%,  y0 = %.2f %% (%.2f C)\n', ...
         u0, y0, y0*(T_MAX-T_MIN)/100 + T_MIN);
 
+%% 9. Pruebas en la planta real (sesion de laboratorio, 27/10/2026)
+% Se uso el script del profesor test_PID_servo_reg.py (PID estandar, Ts ~ 1 s,
+% error calculado en grados C). Columnas del archivo data.txt:
+%   1 = t [s], 2 = Q1 [%], 3 = Q2 [%], 4 = T1 [C], 5 = T2 [C], 6 = SP1 [C], 7 = SP2 [C]
+% Perfil: referencias 79 C (t = 20 s), 27 C (t = 550 s), 60 C (t = 1000 s);
+% perturbacion 1: Q2 = 100 % entre 1500 y 1800 s; perturbacion 2: soplado.
+%
+% IMPORTANTE: Kc se ingreso con el valor de diseno en %/% en un script que
+% trabaja el error en C. La ganancia efectiva en %/% es Kc*(T_MAX-T_MIN)/100.
+PRUEBAS = { ...
+  'dataPrueba1.txt', 'C2 (prueba 1)', 12.378, 178.09;   % C2
+  'dataprueba2.txt', 'C4 (prueba 2)',  8.000, 191.63};  % C4 como PI continuo
+T_FIN_REG  = 1860;   % fin de la ventana de la perturbacion 1 (antes del soplado)
+
+nP = size(PRUEBAS, 1);
+Rserv = zeros(nP, 5); Rreg = zeros(nP, 4); Rsop = zeros(nP, 2);
+Kef = zeros(nP, 1);
+figure('Name','Prueba real completa');
+fS = figure('Name','Prueba real - Servocontrol');
+fR = figure('Name','Prueba real - Regulatorio');
+
+for i = 1:nP
+    rp = fullfile(carpeta, PRUEBAS{i,1});
+    if ~isfile(rp), error('No se encontro %s en la carpeta del script.', PRUEBAS{i,1}); end
+    D  = readmatrix(rp); D = D(all(~isnan(D),2),:);
+    tr = D(:,1); Q1 = D(:,2); Q2 = D(:,3); T1 = D(:,4); SP = D(:,6);
+    yr = (T1 - T_MIN)/(T_MAX - T_MIN)*100;      % normalizacion 0-100 %
+    rr = (SP - T_MIN)/(T_MAX - T_MIN)*100;
+    er = rr - yr;
+    Kef(i) = PRUEBAS{i,3}*(T_MAX - T_MIN)/100;
+
+    % Instantes detectados de los datos
+    kS  = find(diff(SP) ~= 0, 1, 'last') + 1;  tS = tr(kS);     % ultimo escalon en r
+    kQ  = find(diff(Q2) > 0, 1) + 1;           tQ = tr(kQ);     % Q2 encendido
+    kQf = find(diff(Q2) < 0, 1) + 1;           tQf = tr(kQf);   % Q2 apagado
+
+    % --- Servocontrol: desde el escalon hasta que entra la perturbacion ---
+    m  = tr >= tS & tr < tQ;
+    Rserv(i,:) = met_servo(tr(m), yr(m), rr(m), Q1(m));
+
+    % --- Regulatorio, perturbacion 1 (Q2) ---
+    m  = tr >= tQ & tr < T_FIN_REG;
+    mE = tr >= tQf - 60 & tr < tQf;           % ultimos 60 s con Q2 encendido
+    Rreg(i,:) = [max(abs(er(m))), trapz(tr(m), abs(er(m))), mean(er(mE)), ...
+                 sum(abs(diff(Q1(m))))];
+
+    % --- Perturbacion 2 (soplado), solo informativo ---
+    m  = tr >= T_FIN_REG;
+    Rsop(i,:) = [max(abs(er(m))), trapz(tr(m), abs(er(m)))];
+
+    % --- Graficas ---
+    figure(findobj('Name','Prueba real completa'));
+    subplot(nP,1,i);
+    % y, r, u y d estan todas normalizadas en 0-100 %, entonces van en un solo eje
+    plot(tr, yr, 'LineWidth', 1.2); hold on;
+    plot(tr, rr, 'k--', 'LineWidth', 1.0);
+    plot(tr, Q1, 'LineWidth', 0.9);
+    plot(tr, Q2, ':', 'LineWidth', 1.2);
+    grid on; ylim([0 105]); ylabel('[%]'); xlabel('Tiempo [s]');
+    title(sprintf('%s: K_c = %.3f %%/C (%.2f %%/%%), T_i = %.2f s', ...
+          PRUEBAS{i,2}, PRUEBAS{i,3}, Kef(i), PRUEBAS{i,4}));
+    legend('y (T_1)', 'r', 'u (Q_1)', 'd (Q_2)', 'Location', 'best');
+
+    m = tr >= tS & tr < tQ;
+    figure(fS);
+    subplot(3,1,1); plot(tr(m)-tS, yr(m), 'LineWidth', 1.2); hold on; grid on;
+    subplot(3,1,2); plot(tr(m)-tS, er(m), 'LineWidth', 1.2); hold on; grid on;
+    subplot(3,1,3); plot(tr(m)-tS, Q1(m), 'LineWidth', 1.2); hold on; grid on;
+
+    m = tr >= tQ - 50;
+    figure(fR);
+    subplot(3,1,1); plot(tr(m)-tQ, yr(m), 'LineWidth', 1.2); hold on; grid on;
+    subplot(3,1,2); plot(tr(m)-tQ, er(m), 'LineWidth', 1.2); hold on; grid on;
+    subplot(3,1,3); plot(tr(m)-tQ, Q1(m), 'LineWidth', 1.2); hold on; grid on;
+    if i == nP
+        plot(tr(m)-tQ, Q2(m), 'k:', 'LineWidth', 1.2);
+    end
+end
+
+figure(fS);
+subplot(3,1,1); yline(rr(end), 'k--'); ylabel('y [%]');
+title('Planta real - servocontrol (r: 27 \rightarrow 60 C)'); legend([PRUEBAS(:,2)', {'r'}], 'Location', 'southeast');
+subplot(3,1,2); ylabel('e [%]');
+subplot(3,1,3); ylabel('u [%]'); xlabel('Tiempo desde el escalon [s]');
+figure(fR);
+subplot(3,1,1); yline(rr(end), 'k--'); ylabel('y [%]');
+title('Planta real - regulatorio (Q_2 = 100 %, luego soplado)'); legend([PRUEBAS(:,2)', {'r'}], 'Location', 'southwest');
+subplot(3,1,2); ylabel('e [%]');
+subplot(3,1,3); ylabel('u [%]'); xlabel('Tiempo desde la perturbacion [s]');
+legend([PRUEBAS(:,2)', {'d (Q_2)'}], 'Location', 'best');
+
+Tserv = array2table(Rserv, 'RowNames', PRUEBAS(:,2), 'VariableNames', ...
+    {'Mp_pct','ta2_s','ep_pct','IAE','TVu'});
+Treg  = array2table(Rreg, 'RowNames', PRUEBAS(:,2), 'VariableNames', ...
+    {'emax_pct','IAE','ep_pct','TVu'});
+Tsop  = array2table(Rsop, 'RowNames', PRUEBAS(:,2), 'VariableNames', {'emax_pct','IAE'});
+fprintf('\nGanancia efectiva en %%/%%: C2 = %.2f, C4 = %.2f\n', Kef);
+disp('--- Planta real: servocontrol ---'); disp(Tserv);
+disp('--- Planta real: regulatorio (perturbacion 1, Q2) ---'); disp(Treg);
+disp('--- Planta real: perturbacion 2 (soplado) ---'); disp(Tsop);
+
+%% 10. Exportar figuras para el informe (carpeta "figuras")
+GUARDAR_FIG = true;
+% Fondo blanco en todas las figuras (tambien si MATLAB esta en tema oscuro)
+figsAll = findobj('Type', 'figure');
+for k = 1:numel(figsAll)
+    try, theme(figsAll(k), 'light'); catch, end      % R2025a o mas nuevo
+    set(figsAll(k), 'Color', 'w');
+    ax = findall(figsAll(k), 'Type', 'axes');
+    set(ax, 'Color', 'w', 'XColor', [0.15 0.15 0.15], 'YColor', [0.15 0.15 0.15], ...
+            'GridColor', [0.15 0.15 0.15]);
+    for a = ax'
+        a.Title.Color = 'k';
+        if ~isempty(a.Legend)
+            set(a.Legend, 'Color', 'w', 'TextColor', 'k', 'EdgeColor', [0.15 0.15 0.15]);
+        end
+    end
+end
+if GUARDAR_FIG
+    dirFig = fullfile(carpeta, 'figuras');
+    if ~isfolder(dirFig), mkdir(dirFig); end
+    figs = findobj('Type', 'figure');
+    for k = 1:numel(figs)
+        nom = regexprep(figs(k).Name, '[^\w]+', '_');
+        if isempty(nom), nom = sprintf('fig%d', figs(k).Number); end
+        exportgraphics(figs(k), fullfile(dirFig, [nom '.png']), 'Resolution', 300, 'BackgroundColor', 'white');
+    end
+    fprintf('Figuras guardadas en %s\n', dirFig);
+end
+
 %% Funciones locales
+function R = met_servo(t, y, r, u)
+% Mp [%], ta2 [s], ep [%], IAE [%.s] y TVu para un escalon en la referencia
+    rf = r(end); A = rf - y(1);
+    Mp = max(0, (max(y) - rf)/A*100);
+    fuera = find(abs(y - rf) > 0.02*abs(A));
+    if isempty(fuera), ta = 0;
+    elseif fuera(end) == numel(t), ta = NaN;      % no se asienta en la ventana
+    else, ta = t(fuera(end)+1) - t(1);
+    end
+    ep  = mean(rf - y(end-59:end))/A*100;         % ultimos 60 s de la ventana
+    IAE = trapz(t, abs(r - y));
+    TVu = sum(abs(diff(u)));
+    R = [Mp, ta, ep, IAE, TVu];
+end
+
 function tc = cruce(t, yn, p)
 % Primer instante (interpolado) en que la respuesta normalizada alcanza p
     k = find(yn >= p, 1);
