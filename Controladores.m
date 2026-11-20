@@ -245,6 +245,7 @@ theta = Phi\Yr;                              % solucion de minimos cuadrados
 a = [1, theta(1:na)'];
 b = [zeros(1,nk), theta(na+1:end)'];
 P4 = tf(b, a, Tls, 'Variable','z^-1');
+P4 = minreal(P4) ;
 
 fprintf('\n--- Modelos identificados (desviacion, %%/%%) ---\n');
 fprintf('M1 Toolbox P1D : K=%.4f  tau=%.2f s  L=%.2f s\n', M1id.Kp, M1id.Tp1, M1id.Td);

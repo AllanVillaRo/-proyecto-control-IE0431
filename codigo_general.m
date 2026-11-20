@@ -1,6 +1,6 @@
 %% IE-0431 Sistemas de Control - Proyecto final II-2026
-% Equipo 2-10 | Planta: control de temperatura (TMP36 + TIP31C)
-% Punto de operacion asignado: 79-27-60
+% Equipo 2-10
+% Punto de operacion asignado 79-27-60
 
 % --------------- Integrantes ---------------
 % Sebastián Vila Brizuela C4k950
@@ -9,6 +9,7 @@
 
 clear; clc; close all;
 set(groot, 'defaultLineLineWidth', 2)
+
 
 
 % --------------------------------------------------
@@ -53,6 +54,67 @@ title("Respuesta del Sistema a Escalón")
 xlabel('Tiempo [s]')
 ylabel('Magnitud [%]')
 legend('u{(t)}', 'y{(t)}', 'Location', 'best')
+grid on
+
+set(gca, 'FontSize', 22)
+
+
+
+
+
+% --------------------------------------------------
+%% Modelos
+% --------------------------------------------------
+
+s = tf('s') ;
+
+P1 = 0.346 / (190.7*s + 1) ;
+P1.InputDelay = 22.3 ;
+
+P2 = 0.3475 / (172.4*s + 1) ;
+P2.InputDelay = 32 ;
+
+P3 = 0.3475 / (171.1*s + 1) ;
+P3.InputDelay = 22.3 ;
+
+Ts = 9 ;
+z = tf('z', Ts) ;
+
+P4 = (0.01666*z^(-4) + 0.008841*z^(-5) - 0.004581*z^(-6)) / (1 - 0.7908*z^(-1) - 0.007349*z^(-2) - 0.1417*z^(-3));
+
+
+
+
+
+
+
+
+
+
+
+t = (0:9:3000)';
+
+r = zeros(size(t));
+
+r(t >= 10)   = 79;
+r(t >= 1220) = 27;
+r(t >= 2220) = 60;
+
+figure
+plot(r, Temp1)
+plot(t, Heater1)
+hold on
+lsim(P1, r, t)
+lsim(P2, r, t)
+lsim(P3, r, t)
+lsim(P4, r, t)
+
+xlim([0, max(t)])
+ylim([0, 100])
+
+title("Respuesta del Sistema a Escalón")
+xlabel('Tiempo [s]')
+ylabel('Magnitud [%]')
 grid on
 
 set(gca, 'FontSize', 22)
