@@ -306,11 +306,14 @@ Kc2 = taub/(Kb*(tauc + Lb));
 Ti2 = min(taub, 4*(tauc + Lb));
 C2 = pidstd(Kc2, Ti2);
 
-% C3: AMIGO de Astrom y Hagglund (2004), PI para POMTM. Busca Ms ~ 1.4,
-% es decir, prioriza robustez y suavidad de la senal de control.
-Kc3 = 0.15/Kb + (0.35 - Lb*taub/(Lb + taub)^2)*taub/(Kb*Lb);
-Ti3 = 0.35*Lb + 13*Lb*taub^2/(taub^2 + 12*Lb*taub + 7*Lb^2);
-C3 = pidstd(Kc3, Ti3);
+% C3: uSORT de Alfaro y Vilanova (2012), PI para FOPDT, Ms = 1.6
+a0 = 0.209; a1 = 0.417; a2 = -1.064;
+b0 = 14.650; b1 = 0.107; b2 = 0.309; b3 = 0.594;
+
+tau_o = Lb/taub;
+Kc3 = (a0 + a1*tau_o^a2)/Kb;
+Ti3 = ((b0 + b1*tau_o + b2*tau_o^2)/(b3 + tau_o))*taub;
+C3 = pidstd(Kc4, Ti3);
 
 % C4: PI discreto con el modelo de minimos cuadrados (P4, Ts = Tls).
 % Diseno en el Control System Designer:  sisotool(P4)
