@@ -280,9 +280,20 @@ fprintf('Mejor modelo continuo (menor IAE): %s\n', nombres{ib});
 
 
 % ---------------------------------------------
-%% 6. Sintonizacion de controladores PI
+%% 6. Sintonizacion de controladores
 % ---------------------------------------------
 
+% C2: SIMC de Skogestad (2003)
+
+% Nota: controlador usado y diseñado antes de saber que había que hacer
+% parejas de controladores. Este no tiene especificación para servocontrol
+% o regulador.
+tauc = max(Lb, 0.1*taub);
+Kc2 = taub/(Kb*(tauc + Lb));
+Ti2 = min(taub, 4*(tauc + Lb));
+C2 = pidstd(Kc2, Ti2);
+
+% -------------------- Servocontrol --------------------
 
 % Accion del controlador: al subir Q1 sube T1 (K > 0), entonces el
 % controlador es de ACCION INVERSA: e = r - y  y  u = C(s)*e.
@@ -293,20 +304,16 @@ fprintf('Mejor modelo continuo (menor IAE): %s\n', nombres{ib});
 if Kb > 0, accion = 'inversa'; else, accion = 'directa'; end
 fprintf('\nGanancia del proceso K = %.4f > 0  ->  controlador de accion %s\n', Kb, accion);
 
-% C1: PID Tuner de MATLAB, margen de fase de 60 grados
-% pidtune es el mismo algoritmo de la app PID Tuner. Para las capturas del
-% informe, abrir la app con:  pidTuner(P, 'PI')
+% C1: PID Tuner de MATLAB
+
+% Margen de fase de 60 grados pidtune es el mismo algoritmo de la app PID Tuner.
+%  Para las capturas abrir la app con:  pidTuner(P, 'PI')
 optT = pidtuneOptions('PhaseMargin', 60, 'DesignFocus', 'balanced');
 C1 = pidstd(pidtune(P, 'PI', optT));
 
-% C2: SIMC de Skogestad, tau_c = L (sintonia "ajustada", buen compromiso
-% desempeno-robustez). Si L es muy pequeno se limita tau_c >= 0.1*tau.
-tauc = max(Lb, 0.1*taub);
-Kc2 = taub/(Kb*(tauc + Lb));
-Ti2 = min(taub, 4*(tauc + Lb));
-C2 = pidstd(Kc2, Ti2);
+% C3: uSORT de Alfaro y Vilanova (2012)
 
-% C3: uSORT de Alfaro y Vilanova (2012), PI para FOPDT, Ms = 1.6
+% Ms = 1.6
 a0 = 0.209; a1 = 0.417; a2 = -1.064;
 b0 = 14.650; b1 = 0.107; b2 = 0.309; b3 = 0.594;
 
@@ -316,6 +323,7 @@ Ti3 = ((b0 + b1*tau_o + b2*tau_o^2)/(b3 + tau_o))*taub;
 C3 = pidstd(Kc4, Ti3);
 
 % C4: PI discreto con el modelo de minimos cuadrados (P4, Ts = Tls).
+
 % Diseno en el Control System Designer:  sisotool(P4)
 %  - El cero del PI se coloca sobre el polo dominante de P4 (cancelacion)
 %  - La ganancia se ajusta en el LGR para respuesta sin sobrepaso y Ms ~ 1.5
@@ -334,20 +342,40 @@ for i = 1:4
             cn{i}, Cs{i}.Kp, Cs{i}.Ti, Cs{i}.Td);
 end
 
+% -------------------- Regulatorio --------------------
+
+% C3: uSORT de Alfaro y Vilanova (2012)
+
+% Ms = 1.6
+a0 = 0.175; a1 = 0.466; a2 = -0.911;
+b0 = -1.382; b1 = 2.837; b2 = 0.211;
+
+tau_o = Lb/taub;
+Kc3r = (a0 + a1*tau_o^a2)/Kb;
+Ti3r = (b0 + b1*tau_o^b2)*taub;
+C3r = pidstd(Kc3r, Ti3r);
+
+
+
 % Ecuaciones de los controladores (se muestran igual que P1..P4)
 % Forma estandar Kp*(1 + 1/(Ti*s)) y como funcion de transferencia.
-disp('C1 - PID Tuner:');
+disp('C1 Servocontrol - PID Tuner:');
 C1 %#ok<NOPTS>
 C1_tf = tf(C1) %#ok<NOPTS>
 disp('C2 - SIMC:');
 C2 %#ok<NOPTS>
 C2_tf = tf(C2) %#ok<NOPTS>
-disp('C3 - AMIGO:');
+disp('C3 Servocontrol - uSORT1:');
 C3 %#ok<NOPTS>
 C3_tf = tf(C3) %#ok<NOPTS>
-disp('C4 - PI discreto (modelo de minimos cuadrados):');
+disp('C4 Servocontrol - PI discreto (modelo de minimos cuadrados):');
 C4 %#ok<NOPTS>
 C4_tf = tf(C4) %#ok<NOPTS>
+disp('C3 Regulatorio - uSORT1:');
+C3r %#ok<NOPTS>
+C3r_tf = tf(C3r) %#ok<NOPTS>
+
+
 
 
 
