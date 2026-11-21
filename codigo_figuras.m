@@ -36,7 +36,7 @@ carpeta_actual = fileparts(archivo_actual);
 
 % datos de identificacion
 
-dtIdentificacion = fullfile(carpeta_actual, 'datos', 'tclab_ident_data_Q1_v_79-27-60.txt');
+dtIdentificacion = fullfile(carpeta_actual, 'tclab_ident_data_Q1_v_79-27-60.txt');
 
 dtIdentificacion = readtable(dtIdentificacion);
 
@@ -49,7 +49,7 @@ temp2_iden = dtIdentificacion.Temperature2_degC_ ;
 
 % datos prueba 1 con controlador SIMC
 
-dtSIMC = fullfile(carpeta_actual, 'datos', 'dataPrueba1.txt');
+dtSIMC = fullfile(carpeta_actual, 'dataPrueba1.txt');
 
 dtSIMC = readtable(dtSIMC);
 
@@ -64,7 +64,7 @@ setpoint2_simc = dtSIMC.SetPoint1_degC_ ;
 
 % datos prueba 2 con controlador Sisotool
 
-dtSisotool = fullfile(carpeta_actual, 'datos', 'dataprueba2.txt');
+dtSisotool = fullfile(carpeta_actual, 'dataprueba2.txt');
 
 dtSisotool = readtable(dtSisotool);
 
@@ -92,6 +92,7 @@ setpoint2_siso = dtSisotool.SetPoint1_degC_ ;
 
 s = tf('s') ;
 z = tf('z', 9) ;
+Ts = 9 ;
 
 % plantas
 
@@ -106,10 +107,35 @@ P4d = (0.01666 *z^(-4) + 0.008841 *z^(-5) - 0.004581 *z^(-6)) / ...
 
 % controladores en servocontrol
 
+Kp = 4 ;
+Ti = 98.4 ;
+C1s = Kp *( 1 + 1/( Ti *s) ) ;
 
+Kp = 12.4 ;
+Ti = 178 ;
+C2s = Kp *( 1 + 1/( Ti *s) ) ;
+
+Kp = 12.4 ;
+Ti = 3.93e3 ;
+C3s = Kp *( 1 + 1/( Ti *s) ) ; % no tiene par para regulatorio
+
+Kp = 8 ;
+Ti = 192 ;
+C4s = Kp *( 1 + Ts *z/( Ti *(z-1)) ) ;
 
 % controladores en regulatorio
 
+Kp = 10 ;
+Ti = 80.3 ;
+C1r = Kp *( 1 + 1/( Ti *s) ) ;
+
+% Kp = ;
+% Ti = ;
+% C2r = Kp *( 1 + 1/( Ti *s) ) ;
+% 
+% Kp = ;
+% Ti = ;
+% C4r = Kp *( 1 + 1/( Ti *s) ) ;
 
 
 
@@ -132,13 +158,42 @@ P4d = (0.01666 *z^(-4) + 0.008841 *z^(-5) - 0.004581 *z^(-6)) / ...
 %% Pruebas Simuladas
 % --------------------------------------------------
 
-% figure
-% step(P1)
-% hold on
-% step(P2)
-% step(P3)
-% step(P4)
+figure
+ly = tiledlayout(1,1);
+ly.Padding = "tight";
 
+t = (0:9:1210)';
+
+u = 79*(t >= 10);
+
+y1 = 27 + lsim(P1, u, t);
+y2 = 27 + lsim(P2, u, t);
+y3 = 27 + lsim(P3, u, t);
+y4 = 27 + lsim(P4d, u, t);
+
+plot(t, y1, 'LineWidth', 1.5)
+hold on
+plot(t, y2, 'LineWidth', 1.5)
+plot(t, y3, 'LineWidth', 1.5)
+plot(t, y4, 'LineWidth', 1.5)
+
+plot(t_iden, temp1_iden, 'Color', 'b', 'LineStyle', '-')
+
+plot(t, u)
+
+xlim([0, 1210])
+ylim([0, 90])
+
+ylabel('Temperatura (^oC)')
+xlabel('Tiempo (s)')
+title('Comparación de modelos')
+subtitle('Respuesta ante un escalón de amplitud 79')
+
+legend('P_1', 'P_2', 'P_3', 'P_{4d}', ...
+       'Experimental', 'Location', 'southeast')
+
+set(gca, 'FontSize', 19)
+grid on
 
 
 
@@ -190,7 +245,7 @@ legend('x(t)', 'y(t)', 'Location', 'southeast')
 
 set(gca, 'FontSize', 19)
 grid on
-exportgraphics(gcf, 'figuras_experimentales/pruebaExp_identificacion.pdf', 'ContentType', 'vector');
+% exportgraphics(gcf, 'figuras_experimentales/pruebaExp_identificacion.pdf', 'ContentType', 'vector');
 
 
 % ----- figuras para simc -----
@@ -241,7 +296,7 @@ legend('r(t)', 'u(t)', 'd(t)', 'Location', 'best')
 
 set(gca, 'FontSize', 19)
 grid on
-exportgraphics(gcf, 'figuras_experimentales/pruebaExp_simc.pdf', 'ContentType', 'vector');
+% exportgraphics(gcf, 'figuras_experimentales/pruebaExp_simc.pdf', 'ContentType', 'vector');
 
 
 % ----- figuras para sisotool -----
@@ -292,4 +347,4 @@ legend('r(t)', 'u(t)', 'd(t)', 'Location', 'best')
 
 set(gca, 'FontSize', 19)
 grid on
-exportgraphics(gcf, 'figuras_experimentales/pruebaExp_sisotool.pdf', 'ContentType', 'vector');
+% exportgraphics(gcf, 'figuras_experimentales/pruebaExp_sisotool.pdf', 'ContentType', 'vector');

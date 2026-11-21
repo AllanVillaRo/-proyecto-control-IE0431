@@ -320,7 +320,7 @@ b0 = 14.650; b1 = 0.107; b2 = 0.309; b3 = 0.594;
 tau_o = Lb/taub;
 Kc3 = (a0 + a1*tau_o^a2)/Kb;
 Ti3 = ((b0 + b1*tau_o + b2*tau_o^2)/(b3 + tau_o))*taub;
-C3 = pidstd(Kc4, Ti3);
+C3 = pidstd(Kc3, Ti3);
 
 % C4: PI discreto con el modelo de minimos cuadrados (P4, Ts = Tls).
 
@@ -354,6 +354,7 @@ tau_o = Lb/taub;
 Kc3r = (a0 + a1*tau_o^a2)/Kb;
 Ti3r = (b0 + b1*tau_o^b2)*taub;
 C3r = pidstd(Kc3r, Ti3r);
+
 
 
 
