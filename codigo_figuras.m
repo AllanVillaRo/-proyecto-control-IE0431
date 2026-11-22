@@ -46,6 +46,8 @@ heater2_iden = dtIdentificacion.Heater2___ ;
 temp1_iden = dtIdentificacion.Temperature1_degC_ ;
 temp2_iden = dtIdentificacion.Temperature2_degC_ ;
 
+temp1_iden_m = temp1_iden - 25
+heater1_iden_m = heater1_iden - 25
 
 % datos prueba 1 con controlador SIMC
 
@@ -96,13 +98,13 @@ Ts = 9 ;
 
 % plantas
 
-P1 = 0.346 *exp(-22.3 *s)/(190.7 *s + 1);
+P1 = 1.9 * 0.346 *exp(-22.3 *s)/(190.7 *s + 1);
 
-P2 = 0.3475 *exp(-32.0 *s)/(172.4 *s + 1);
+P2 = 1.9 * 0.3475 *exp(-32.0 *s)/(172.4 *s + 1);
 
-P3 = 0.3475 *exp(-36.3 *s)/(171.1 *s + 1);
+P3 = 1.9 * 0.3475 *exp(-36.3 *s)/(171.1 *s + 1);
 
-P4d = (0.01666 *z^(-4) + 0.008841 *z^(-5) - 0.004581 *z^(-6)) / ...
+P4d = 1.9 * (0.01666 *z^(-4) + 0.008841 *z^(-5) - 0.004581 *z^(-6)) / ...
      (1 - 0.7908 *z^(-1) - 0.007349 *z^(-2) - 0.1417 *z^(-3));
 
 % controladores en servocontrol

@@ -274,7 +274,7 @@ title('Respuesta de los modelos vs. proceso real');
 Pc = {P1, P2, P3}; P = Pc{ib};
 [Kb, taub, Lb] = pomtm(P);
 fprintf('Mejor modelo continuo (menor IAE): %s\n', nombres{ib});
-
+P = 1.9 *P ;
 
 
 
